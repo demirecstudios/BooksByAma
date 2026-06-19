@@ -1,32 +1,32 @@
-# Railway Deployment Guide for CNP Bookstore
+# Railway Deployment Guide for CNP Bookstore (Railway-Only)
 
-This guide will help you deploy your Book app to Railway with both a backend server and web frontend.
+This guide will help you deploy your Book app to Railway with both a backend server and web frontend, using Railway PostgreSQL instead of Supabase.
 
 ## Architecture Overview
 
 Your app has been restructured into three parts:
 
 1. **Backend Server** (`/backend`) - Node.js/Express API
-   - Replaces Supabase Edge Functions
-   - Handles authentication, payments, and data operations
-   - Connects to your existing Supabase database
+   - Custom JWT authentication with bcrypt
+   - Handles payments via Paystack
+   - Connects to Railway PostgreSQL database
+   - Replaces all Supabase functionality
 
 2. **Web Frontend** (`/web`) - Next.js web application
    - Responsive web platform for desktop/mobile browsers
    - Consumes the backend API
-   - Similar UI/UX to your mobile app
+   - No Supabase dependencies
 
 3. **Mobile App** (root directory) - Original Expo app
-   - Can continue to work as-is
-   - Can optionally consume the new backend API
+   - Can continue to work with Supabase or be updated to use new backend API
 
 ## Prerequisites
 
 - Railway account (https://railway.app)
-- Supabase project (already set up)
 - Paystack account (already set up)
+- GitHub repository with the code
 
-## Step 1: Deploy Backend Server
+## Step 1: Set Up Railway PostgreSQL Database
 
 ### 1.1 Create Railway Project
 
@@ -35,14 +35,35 @@ Your app has been restructured into three parts:
 3. Select "Deploy from GitHub repo"
 4. Connect your repository
 
-### 1.2 Configure Backend Service
+### 1.2 Add PostgreSQL Database
 
-1. Click "New Service" → "Git"
+1. In your Railway project, click "New Service"
+2. Select "Database" → "PostgreSQL"
+3. Railway will create a PostgreSQL database
+
+### 1.3 Get Database URL
+
+1. Click on the PostgreSQL service
+2. Go to "Variables" tab
+3. Copy the `DATABASE_URL` (you'll need this for the backend)
+
+### 1.4 Run Database Schema
+
+1. Click on the PostgreSQL service
+2. Go to "Query" tab
+3. Copy and paste the contents of `backend/schema.sql`
+4. Click "Run Query" to create all tables
+
+## Step 2: Deploy Backend Server
+
+### 2.1 Create Backend Service
+
+1. In the same Railway project, click "New Service" → "Git"
 2. Select your repository
 3. Set root directory to `backend`
-4. Railway will detect the Node.js project automatically
+4. Railway will detect the Node.js project
 
-### 1.3 Set Environment Variables
+### 2.2 Set Environment Variables
 
 In your Railway backend service, add these variables:
 
@@ -51,10 +72,11 @@ In your Railway backend service, add these variables:
 PORT=3000
 NODE_ENV=production
 
-# Supabase Configuration
-SUPABASE_URL=https://llasuftjrngeexqegtoq.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
-SUPABASE_ANON_KEY=your-anon-key-here
+# Railway PostgreSQL Database
+DATABASE_URL=your-postgresql-url-from-step-1.3
+
+# JWT Secret for authentication
+JWT_SECRET=generate-a-secure-random-secret-key
 
 # Paystack Configuration
 PAYSTACK_SECRET_KEY=sk_live_xxxxxxxxxxxxxxxxxxxxx
@@ -64,26 +86,34 @@ PAYSTACK_PUBLIC_KEY=pk_live_8aea307757ade32163cc86855638051b6e89b886
 WEB_URL=https://your-frontend-url.railway.app
 ```
 
-**Important:** Get your Supabase keys from:
-- Supabase Dashboard → Project Settings → API
-- Use the `service_role` key (not anon key) for backend operations
+**Important:** Generate a secure JWT_SECRET using:
+```bash
+openssl rand -base64 32
+```
 
-### 1.4 Deploy
+### 2.3 Connect Backend to Database
+
+1. Click on the backend service
+2. Go to "Settings" → "Networking"
+3. Find the PostgreSQL service in the list
+4. Click "Connect" to link the backend to the database
+
+### 2.4 Deploy
 
 1. Click "Deploy"
 2. Wait for deployment to complete
 3. Copy the backend URL (e.g., `https://your-backend.railway.app`)
 
-## Step 2: Deploy Web Frontend
+## Step 3: Deploy Web Frontend
 
-### 2.1 Create Frontend Service
+### 3.1 Create Frontend Service
 
 1. In the same Railway project, click "New Service" → "Git"
 2. Select your repository
 3. Set root directory to `web`
 4. Railway will detect the Next.js project
 
-### 2.2 Set Environment Variables
+### 3.2 Set Environment Variables
 
 In your Railway frontend service, add these variables:
 
@@ -91,30 +121,26 @@ In your Railway frontend service, add these variables:
 # API URL (use your deployed backend URL)
 NEXT_PUBLIC_API_URL=https://your-backend.railway.app
 
-# Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL=https://llasuftjrngeexqegtoq.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
-
 # Paystack Configuration
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_8aea307757ade32163cc86855638051b6e89b886
 ```
 
-### 2.3 Update Backend WEB_URL
+### 3.3 Update Backend WEB_URL
 
 Go back to your backend service environment variables and update:
 ```bash
 WEB_URL=https://your-frontend-url.railway.app
 ```
 
-### 2.4 Deploy
+### 3.4 Deploy
 
 1. Click "Deploy"
 2. Wait for deployment to complete
 3. Copy the frontend URL
 
-## Step 3: Test the Deployment
+## Step 4: Test the Deployment
 
-### 3.1 Test Backend Health
+### 4.1 Test Backend Health
 
 Visit: `https://your-backend.railway.app/health`
 
@@ -122,11 +148,26 @@ Expected response:
 ```json
 {
   "status": "ok",
-  "timestamp": "2024-06-19T..."
+  "timestamp": "2024-06-19T...",
+  "database": "connected"
 }
 ```
 
-### 3.2 Test API Endpoints
+### 4.2 Test Authentication
+
+```bash
+# Sign up a new user
+curl -X POST https://your-backend.railway.app/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123","fullName":"Test User","username":"testuser"}'
+
+# Sign in
+curl -X POST https://your-backend.railway.app/api/auth/signin \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+```
+
+### 4.3 Test API Endpoints
 
 ```bash
 # Get all books
@@ -136,59 +177,61 @@ curl https://your-backend.railway.app/api/books
 curl https://your-backend.railway.app/api/categories
 ```
 
-### 3.3 Test Frontend
+### 4.4 Test Frontend
 
 Visit: `https://your-frontend-url.railway.app`
 
 You should see the CNP Bookstore web interface.
 
-## Step 4: Update Mobile App (Optional)
+## Step 5: Add Initial Data
 
-If you want your mobile app to use the new backend API:
+### 5.1 Add Categories via Railway Query
 
-### 4.1 Update Supabase Configuration
+1. Go to your PostgreSQL service
+2. Go to "Query" tab
+3. Run this query to add sample categories:
 
-In your mobile app, you can continue using the existing Supabase client or switch to the new backend API.
-
-### 4.2 Update API Calls
-
-Replace direct Supabase calls with backend API calls:
-
-```javascript
-// Old (direct Supabase)
-const { data } = await supabase.from('books').select('*');
-
-// New (backend API)
-const response = await fetch('https://your-backend.railway.app/api/books');
-const data = await response.json();
+```sql
+INSERT INTO categories (name, cover_url) VALUES 
+('Adventure', 'https://example.com/adventure.jpg'),
+('Fairy Tales', 'https://example.com/fairytales.jpg'),
+('Educational', 'https://example.com/educational.jpg');
 ```
 
-## Step 5: Configure Custom Domain (Optional)
+### 5.2 Add Sample Books
 
-### 5.1 Add Custom Domain
+```sql
+INSERT INTO books (title, description, age, category, color, price, cover_image, author) VALUES 
+('The Magic Forest', 'A wonderful adventure in the magical forest', '3-5', 'Adventure', '#4CAF50', 1500, 'https://example.com/forest.jpg', 'Jane Doe'),
+('Princess Stories', 'Classic fairy tales for little princesses', '4-7', 'Fairy Tales', '#E91E63', 2000, 'https://example.com/princess.jpg', 'John Smith');
+```
+
+## Step 6: Configure Custom Domain (Optional)
+
+### 6.1 Add Custom Domain
 
 1. Go to Railway project settings
 2. Click "Domains"
 3. Add your custom domain (e.g., `api.cnpbookstore.com` for backend)
 4. Add another domain for frontend (e.g., `www.cnpbookstore.com`)
 
-### 5.2 Update DNS
+### 6.2 Update DNS
 
 Railway will provide DNS records to add to your domain registrar.
 
-## Step 6: Monitor and Scale
+## Step 7: Monitor and Scale
 
-### 6.1 View Logs
+### 7.1 View Logs
 
 - Railway provides real-time logs for both services
 - Monitor for errors and performance issues
 
-### 6.2 Set Up Alerts
+### 7.2 Set Up Alerts
 
 - Configure Railway alerts for downtime
 - Set up error tracking (e.g., Sentry)
 
-### 6.3 Scale Resources
+### 7.3 Scale Resources
 
 - Go to service settings
 - Adjust CPU/RAM based on traffic
@@ -200,13 +243,18 @@ Railway will provide DNS records to add to your domain registrar.
 
 **Problem:** Backend won't start
 - Check environment variables are set correctly
-- Verify Supabase credentials
+- Verify DATABASE_URL is correct
 - Check Railway logs for errors
 
-**Problem:** API returns 500 errors
-- Check Supabase connection
-- Verify database tables exist
-- Check service role key permissions
+**Problem:** Database connection failed
+- Verify DATABASE_URL is correct
+- Check if backend is connected to PostgreSQL service
+- Ensure database schema was created
+
+**Problem:** Authentication fails
+- Verify JWT_SECRET is set
+- Check if user exists in database
+- Verify password hashing is working
 
 ### Frontend Issues
 
@@ -222,18 +270,22 @@ Railway will provide DNS records to add to your domain registrar.
 
 ### Database Issues
 
-**Problem:** Can't access Supabase from backend
-- Verify SUPABASE_URL is correct
-- Check service role key has proper permissions
-- Ensure Supabase project is active
+**Problem:** Tables don't exist
+- Run the schema.sql file in Railway Query tab
+- Verify all tables were created successfully
+
+**Problem:** Can't insert data
+- Check table structure matches schema
+- Verify data types are correct
+- Check for constraint violations
 
 ## Cost Management
 
 Railway pricing:
 - Free tier: $5/month credit
+- PostgreSQL: ~$5-10/month depending on usage
 - Backend: ~$5-20/month depending on usage
 - Frontend: ~$5-20/month depending on usage
-- Database: Supabase has free tier, then paid plans
 
 ## Security Best Practices
 
@@ -241,40 +293,50 @@ Railway pricing:
    - Use Railway environment variables
    - Keep `.env` files in `.gitignore`
 
-2. **Use service role key only on backend**
-   - Frontend should use anon key
-   - Backend uses service role for admin operations
+2. **Use strong JWT_SECRET**
+   - Generate a secure random key
+   - Never use default or weak secrets
 
 3. **Enable HTTPS**
    - Railway provides automatic SSL certificates
    - Never use HTTP in production
 
 4. **Regular backups**
-   - Supabase handles database backups
+   - Railway handles database backups
    - Consider Railway backups for application state
+
+## Migration from Supabase
+
+If you have existing data in Supabase:
+
+1. Export your Supabase data
+2. Transform it to match the new schema
+3. Import into Railway PostgreSQL
+4. Update any hardcoded Supabase references in mobile app
 
 ## Next Steps
 
 1. Test the deployment thoroughly
 2. Set up monitoring and alerts
 3. Configure custom domains
-4. Update mobile app to use backend API (optional)
+4. Update mobile app to use new backend API (optional)
 5. Set up CI/CD pipeline
 6. Document API endpoints for future development
 
 ## Support
 
 - Railway Documentation: https://docs.railway.app
-- Supabase Documentation: https://supabase.com/docs
+- PostgreSQL Documentation: https://www.postgresql.org/docs
 - Next.js Documentation: https://nextjs.org/docs
 
 ## Summary
 
 Your CNP Bookstore is now deployed on Railway with:
-- ✅ Backend API server (Node.js/Express)
+- ✅ Backend API server (Node.js/Express + PostgreSQL)
 - ✅ Web frontend (Next.js)
-- ✅ Existing Supabase database
+- ✅ Railway PostgreSQL database
+- ✅ Custom JWT authentication
 - ✅ Paystack payment integration
-- ✅ Mobile app (can be updated optionally)
+- ✅ No Supabase dependencies
 
-The backend replaces Supabase Edge Functions and provides a centralized API for both web and mobile platforms.
+The backend provides a complete API for both web and mobile platforms using Railway's infrastructure only.
