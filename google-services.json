@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1000485857924",
+    "project_id": "book-by-ama",
+    "storage_bucket": "book-by-ama.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1000485857924:android:61d8ca0510f104471f70d1",
+        "android_client_info": {
+          "package_name": "com.phemzilee_ama.CNP"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAZYX8rdfzqnfFeSNGGhQUIGsRSt1rJdLo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "CNP",
+    "name": "Books By AMA",
     "slug": "CNP",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -19,7 +19,9 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.phemzilee_ama.CNP",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",
@@ -38,11 +40,25 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#2E86AB",
+          "androidMode": "default"
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7ea1b439-ad7c-4f4c-9851-1be890b047d3"
+      }
     }
   }
 }
