@@ -1,17 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { supabase } = require('../server');
+const { pool } = require('../server');
 
 // Get all orders (admin only)
 router.get('/', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    res.json(data);
+    const result = await pool.query(
+      'SELECT * FROM orders ORDER BY created_at DESC'
+    );
+    res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -20,14 +17,14 @@ router.get('/', async (req, res) => {
 // Get order by ID
 router.get('/:id', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', req.params.id)
-      .single();
-
-    if (error) throw error;
-    res.json(data);
+    const result = await pool.query(
+      'SELECT * FROM orders WHERE id = $1',
+      [req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    res.json(result.rows[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -36,14 +33,11 @@ router.get('/:id', async (req, res) => {
 // Get orders by user ID
 router.get('/user/:userId', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('user_id', req.params.userId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    res.json(data);
+    const result = await pool.query(
+      'SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC',
+      [req.params.userId]
+    );
+    res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -52,17 +46,16 @@ router.get('/user/:userId', async (req, res) => {
 // Create order
 router.post('/', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('orders')
-      .insert([req.body])
-      .select();
-
-    if (error) throw error;
+    const { user_id, items, total, status } = req.body;
+    const result = await pool.query(
+      'INSERT INTO orders (user_id, items, total, status) VALUES ($1, $2, $3, $4) RETURNING *',
+      [user_id, JSON.stringify(items), total, status || 'pending']
+    );
     
-    // Notify admins of new order (migrated from Supabase Edge Function)
-    await notifyAdminsOfNewOrder(data[0]);
+    // Notify admins of new order
+    await notifyAdminsOfNewOrder(result.rows[0]);
     
-    res.json(data[0]);
+    res.json(result.rows[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -71,14 +64,15 @@ router.post('/', async (req, res) => {
 // Update order status (admin only)
 router.put('/:id', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('orders')
-      .update(req.body)
-      .eq('id', req.params.id)
-      .select();
-
-    if (error) throw error;
-    res.json(data[0]);
+    const { status } = req.body;
+    const result = await pool.query(
+      'UPDATE orders SET status = $1 WHERE id = $2 RETURNING *',
+      [status, req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    res.json(result.rows[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -88,15 +82,13 @@ router.put('/:id', async (req, res) => {
 async function notifyAdminsOfNewOrder(order) {
   try {
     // Fetch all admin push tokens
-    const { data: tokenRows, error: tokenError } = await supabase
-      .from('admin_push_tokens')
-      .select('token');
-
-    if (tokenError || !tokenRows || tokenRows.length === 0) {
+    const tokenResult = await pool.query('SELECT token FROM admin_push_tokens');
+    
+    if (tokenResult.rows.length === 0) {
       return;
     }
 
-    const tokens = tokenRows.map((r) => r.token);
+    const tokens = tokenResult.rows.map((r) => r.token);
 
     // Format the notification
     const total = Number(order.total ?? 0).toLocaleString('en-NG', {

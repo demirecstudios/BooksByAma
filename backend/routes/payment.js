@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { supabase } = require('../server');
 
-// Verify Paystack transaction (migrated from Supabase Edge Function)
+// Verify Paystack transaction
 router.post('/verify', async (req, res) => {
   try {
     const { reference } = req.body;

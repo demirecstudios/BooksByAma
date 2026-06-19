@@ -2,18 +2,25 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const { createClient } = require('@supabase/supabase-js');
+const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Initialize Supabase client (with fallback for missing env vars)
-const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
-  ? createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    )
-  : null;
+// Initialize PostgreSQL connection
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('railway') ? { rejectUnauthorized: false } : false
+});
+
+// Test database connection
+pool.query('SELECT NOW()', (err, res) => {
+  if (err) {
+    console.error('Database connection error:', err);
+  } else {
+    console.log('Database connected successfully at:', res.rows[0].now);
+  }
+});
 
 // Middleware
 app.use(helmet());
@@ -22,10 +29,10 @@ app.use(express.json());
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
-    supabase: supabase ? 'connected' : 'not configured'
+    database: pool.totalCount > 0 ? 'connected' : 'not configured'
   });
 });
 
@@ -54,4 +61,4 @@ app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
 });
 
-module.exports = { app, supabase };
+module.exports = { app, pool };
