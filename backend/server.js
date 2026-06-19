@@ -2,16 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const { Pool } = require('pg');
+const pool = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Initialize PostgreSQL connection
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('railway') ? { rejectUnauthorized: false } : false
-});
 
 // Test database connection
 pool.query('SELECT NOW()', (err, res) => {
@@ -61,4 +55,4 @@ app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
 });
 
-module.exports = { app, pool };
+module.exports = { app };

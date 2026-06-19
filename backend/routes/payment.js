@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const pool = require('../db');
 
 // Verify Paystack transaction
 router.post('/verify', async (req, res) => {
