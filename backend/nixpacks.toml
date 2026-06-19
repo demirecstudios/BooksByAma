@@ -1,5 +1,5 @@
 [phases.build]
-cmds = ["npm install --production"]
+cmds = ["npm install"]
 
 [phases.start]
 cmds = ["node server.js"]
